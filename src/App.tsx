@@ -46,6 +46,9 @@ export default function App() {
       case 'success':
         return (
           <>
+            <p role="status" className="sr-only">
+              Previsão carregada para {weather.data.city.name}.
+            </p>
             {weather.cities.length > 0 && (
               <CityResults cities={weather.cities} onSelect={weather.selectCity} />
             )}

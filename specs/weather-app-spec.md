@@ -148,9 +148,9 @@ marcados com OQ dependem de aprovação antes de virarem testes de aceite finais
   busca, seleção, consulta e troca de unidade não devem exigir rolagem
   horizontal; validar nas orientações suportadas após definição em OQ8/OQ9.
 - **RNF2 — Acessibilidade:** os fluxos principais devem ser operáveis por teclado, ter
-  foco visível e nomes acessíveis; loading, vazio e erro devem ser comunicados
-  a tecnologias assistivas. WCAG 2.2 AA é a meta proposta, sujeita à aprovação
-  em OQ9.
+  foco visível e nomes acessíveis; loading, vazio, sucesso e erro devem ser
+  comunicados a tecnologias assistivas. WCAG 2.2 AA é a meta proposta, sujeita
+  à aprovação em OQ9.
 - **RNF3 — Desempenho:** medir separadamente o tempo da interface e o tempo da API entre
   a ação de busca e a exibição dos resultados. A meta provisória é p95 de até
   2 segundos em condições de rede definidas; aprovar as condições e a meta em

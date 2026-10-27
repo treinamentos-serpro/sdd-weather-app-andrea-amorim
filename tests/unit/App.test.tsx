@@ -92,6 +92,11 @@ describe('App', () => {
     await submitSearch('São Paulo');
 
     expect(await screen.findByRole('region', { name: 'São Paulo' })).toBeInTheDocument();
+    expect(
+      screen
+        .getAllByRole('status')
+        .some((status) => status.textContent?.trim() === 'Previsão carregada para São Paulo.'),
+    ).toBe(true);
     expect(screen.getByRole('region', { name: 'Cidades encontradas' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'São Paulo, São Paulo, Brasil' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Rio de Janeiro, Rio de Janeiro, Brasil' })).toBeInTheDocument();
