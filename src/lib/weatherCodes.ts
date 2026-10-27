@@ -35,10 +35,12 @@ const weatherConditions: Partial<Record<number, WeatherCondition>> = {
 };
 
 export function getWeatherCondition(
-  code: number | null,
+  code: number | null | undefined,
   isDay: boolean | null = null,
 ): WeatherCondition {
-  if (code === null) return { label: '—', icon: '❔' };
+  if (typeof code !== 'number' || !Number.isFinite(code)) {
+    return { label: '—', icon: '❔' };
+  }
   const condition = weatherConditions[code];
   if (!condition) return { label: 'Condição desconhecida', icon: '❔' };
   if (isDay === false && (code === 0 || code === 1)) {

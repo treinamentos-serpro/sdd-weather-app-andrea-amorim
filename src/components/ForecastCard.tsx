@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { formatDayLabel, formatValue } from '../lib/format';
+import { formatDayLabel, formatValue, isValidDayDate } from '../lib/format';
 import { convertTemperature } from '../lib/temperature';
 import { getWeatherCondition } from '../lib/weatherCodes';
 import type { ForecastDay, Unit } from '../types/weather';
@@ -20,7 +20,11 @@ export default function ForecastCard({ day, unit }: ForecastCardProps) {
       className="h-full min-w-0 rounded-2xl border border-white/10 bg-white/5 p-3 text-white shadow-glass backdrop-blur-md sm:p-4"
     >
       <h3 id={headingId} className="break-words text-sm font-semibold">
-        <time dateTime={day.date}>{formatDayLabel(day.date)}</time>
+        {isValidDayDate(day.date) ? (
+          <time dateTime={day.date}>{formatDayLabel(day.date)}</time>
+        ) : (
+          '—'
+        )}
       </h3>
       <span aria-hidden="true" className="my-3 block text-3xl sm:text-4xl">
         {condition.icon}

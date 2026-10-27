@@ -103,4 +103,36 @@ describe('ForecastCard', () => {
     expect(screen.getByText('-2,5 °C')).toBeInTheDocument();
     expect(screen.getByText('0 %')).toBeInTheDocument();
   });
+
+  it.each(['celsius', 'fahrenheit'] as const)(
+    'protege todas as métricas não finitas em %s',
+    (unit) => {
+      render(
+        <ForecastCard
+          day={{
+            ...day,
+            maximumTemperatureC: Number.NaN,
+            minimumTemperatureC: Infinity,
+            precipitationProbabilityMaxPercent: -Infinity,
+            weatherCode: Number.NaN,
+          }}
+          unit={unit}
+        />,
+      );
+      expect(screen.getAllByRole('definition').map((item) => item.textContent)).toEqual([
+        '—', '—', '—',
+      ]);
+      expect(screen.getByRole('article')).not.toHaveTextContent(/NaN|undefined|Infinity|∞/);
+    },
+  );
+
+  it.each(['', '2026-02-30', 'inválida'])(
+    'não quebra a renderização nem gera time inválido para %j',
+    (date) => {
+      render(<ForecastCard day={{ ...day, date }} unit="celsius" />);
+      expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent('—');
+      expect(screen.getByRole('heading', { level: 3 }).querySelector('time')).toBeNull();
+      expect(screen.getByText('100 °C')).toBeInTheDocument();
+    },
+  );
 });

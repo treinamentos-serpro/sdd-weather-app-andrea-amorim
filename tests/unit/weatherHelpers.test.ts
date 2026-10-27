@@ -35,6 +35,13 @@ describe('getWeatherCondition', () => {
     expect(getWeatherCondition(999)).toEqual({ label: 'Condição desconhecida', icon: '❔' });
   });
 
+  it.each([undefined, Number.NaN, Infinity, -Infinity])(
+    'mostra ausência para código inválido %s',
+    (code) => {
+      expect(getWeatherCondition(code)).toEqual({ label: '—', icon: '❔' });
+    },
+  );
+
   it.each([0, 1])('usa a lua à noite para o código %s', (code) => {
     expect(getWeatherCondition(code, false).icon).toBe('🌙');
     expect(getWeatherCondition(code, true).icon).not.toBe('🌙');

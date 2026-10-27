@@ -299,6 +299,14 @@ alterná-la não chama novamente a API (AC4.2–AC4.4).
   temperaturas para Fahrenheit apenas na apresentação. Se um campo esperado
   estiver ausente ou vier `null`, normalizá-lo para `null` no tipo e exibir “—”.
   A troca de `Unit` não provoca novo request.
+- **Proteção de dados parciais:** aplicar o inventário de nulabilidade da spec
+  aos campos consumidos. Reutilizar a validação de data de `lib/format` no
+  mapeamento diário; rejeitar estrutura, horário, fuso ou datas inválidos antes
+  da renderização. Omitir textos opcionais vazios do geocoding e validar nome
+  e limites das coordenadas. Lista não vazia sem cidades válidas é erro.
+  Formatadores, conversão e códigos WMO defendem também contra `undefined` e
+  valores não finitos; overflow de conversão resulta em `null`. Componentes
+  preservam zero, usam “—” para ausência e não geram `<time>` inválido.
 - **Erros:** resposta válida sem resultados de geocoding é `empty`; falha HTTP,
   rede, timeout ou JSON inválido é `error`. O timeout e eventual retry/cache
   seguem OQ6.
@@ -342,18 +350,25 @@ OQ6.
 - **Rede (`kind: "network"`):** falha de conexão ou `fetch` rejeitado. Encerrar
   loading e exibir mensagem de que não foi possível conectar; não classificar
   como busca sem resultados.
-  No serviço, o helper compartilhado `fetchWithTimeout` converte a rejeição
-  em `WeatherServiceError` com a mensagem “Falha de rede.”.
+  No serviço, o helper compartilhado `fetchJsonWithTimeout` converte falhas de
+  transporte, inclusive durante a leitura do corpo, em `WeatherServiceError`.
+  A mensagem orienta verificar a conexão e tentar novamente.
 - **API (`kind: "api"`):** resposta HTTP não-2xx ou erro explícito do provedor.
   Encerrar loading e informar que o serviço não concluiu a consulta; não expor
   detalhes internos da resposta ao usuário.
 - **Timeout (`kind: "timeout"`):** distinguir o cancelamento por prazo excedido
   de cancelamento manual por troca de cidade. Encerrar loading e exibir mensagem
-  de demora/falha. Conforme decisão parcial de OQ6, `fetchWithTimeout` usa
+  de demora/falha. Conforme OQ6, `fetchJsonWithTimeout` usa
   `AbortController` com prazo de 10 segundos, centralizado no serviço para
-  geocodificação e forecast. Converte `AbortError` em `WeatherServiceError`
-  com “A requisição demorou demais.” e executa `clearTimeout` no `finally`.
-  Eventual retry continua pendente em OQ6.
+  geocodificação e forecast, incluindo a leitura do JSON. Converte o aborto
+  em `WeatherServiceError`, informa o limite de 10 segundos e executa
+  `clearTimeout` no `finally`.
+- **Retry manual:** `useWeather` guarda a última operação do usuário e seus
+  argumentos; `retry` repete a busca completa ou somente o forecast da cidade
+  selecionada. `ErrorState` chama essa ação; loading remove o botão. Não há
+  retry automático. O identificador de request protege também novas tentativas.
+  Mensagens amigáveis são compartilhadas por categoria entre serviço e hook;
+  diagnósticos técnicos não são exibidos pela interface.
 - **Resposta inválida (`kind: "invalid-response"`):** JSON inválido ou estrutura
   incompatível com o contrato. Encerrar loading e informar falha de leitura dos
   dados; registrar diagnóstico técnico sem exibir payload ao usuário.

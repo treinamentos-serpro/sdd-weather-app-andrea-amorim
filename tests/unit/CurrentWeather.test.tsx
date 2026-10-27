@@ -139,4 +139,33 @@ describe('CurrentWeather', () => {
     expect(screen.getByRole('heading', { name: 'Recife' })).toBeInTheDocument();
     expect(screen.queryByText('undefined')).not.toBeInTheDocument();
   });
+
+  it.each(['celsius', 'fahrenheit'] as const)(
+    'mostra traços para todas as métricas não finitas em %s',
+    (unit) => {
+      render(
+        <CurrentWeather
+          city={{ name: ' ', latitude: 0, longitude: 0 }}
+          current={{
+            ...mockWeatherData.current,
+            temperatureC: Number.NaN,
+            apparentTemperatureC: Infinity,
+            relativeHumidityPercent: Number.NaN,
+            windSpeedKmh: Infinity,
+            precipitationMm: -Infinity,
+            pressureMslHpa: Number.NaN,
+            weatherCode: Number.NaN,
+          }}
+          unit={unit}
+        />,
+      );
+      expect(screen.getByRole('heading')).toHaveTextContent('Cidade indisponível');
+      expect(screen.getByLabelText('Temperatura atual')).toHaveTextContent('—');
+      expect(screen.getByText('Sensação térmica: —')).toBeInTheDocument();
+      expect(screen.getAllByRole('definition').map((value) => value.textContent)).toEqual([
+        '—', '—', '—', '—',
+      ]);
+      expect(screen.getByRole('region')).not.toHaveTextContent(/NaN|undefined|Infinity|∞/);
+    },
+  );
 });

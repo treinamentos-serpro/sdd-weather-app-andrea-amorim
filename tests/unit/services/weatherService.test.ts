@@ -220,6 +220,125 @@ describe('weatherService', () => {
       expect(result.forecastDays).toHaveLength(5);
     });
 
+    it.each([undefined, null, 'inválido', Number.NaN, Infinity, -Infinity, 0])(
+      'normaliza todos os campos numéricos com valor %s sem perder zero',
+      async (value) => {
+        const currentFields = [
+          'temperature_2m', 'apparent_temperature', 'relative_humidity_2m',
+          'weather_code', 'precipitation', 'wind_speed_10m', 'wind_direction_10m',
+          'pressure_msl',
+        ];
+        const dailyFields = [
+          'temperature_2m_min', 'temperature_2m_max', 'weather_code',
+          'precipitation_sum', 'precipitation_probability_max',
+        ];
+        const response = new Response();
+        vi.spyOn(response, 'json').mockResolvedValue({
+          timezone: 'America/Sao_Paulo',
+          current: {
+            time: current.time,
+            ...Object.fromEntries(currentFields.map((field) => [field, value])),
+          },
+          daily: {
+            time: daily.time,
+            ...Object.fromEntries(dailyFields.map((field) => [field, [value]])),
+          },
+        });
+        fetchMock.mockResolvedValueOnce(response);
+
+        const result = await getWeather(city);
+        const expected = value === 0 ? 0 : null;
+        expect(result.current).toEqual({
+          observedAt: current.time,
+          temperatureC: expected,
+          apparentTemperatureC: expected,
+          relativeHumidityPercent: expected,
+          weatherCode: expected,
+          precipitationMm: expected,
+          windSpeedKmh: expected,
+          windDirectionDegrees: expected,
+          pressureMslHpa: expected,
+          isDay: null,
+        });
+        for (const [index, day] of result.forecastDays.entries()) {
+          const dailyExpected = index === 0 ? expected : null;
+          expect(day).toEqual({
+            date: daily.time[index],
+            minimumTemperatureC: dailyExpected,
+            maximumTemperatureC: dailyExpected,
+            weatherCode: dailyExpected,
+            precipitationSumMm: dailyExpected,
+            precipitationProbabilityMaxPercent: dailyExpected,
+          });
+        }
+      },
+    );
+
+    it.each([null, undefined, {}, 'inválido'])(
+      'normaliza arrays de métricas inválidos %j sem perder as datas',
+      async (value) => {
+        fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+          timezone: 'America/Sao_Paulo',
+          current,
+          daily: {
+            time: daily.time,
+            weather_code: value,
+            temperature_2m_min: value,
+            temperature_2m_max: value,
+            precipitation_sum: value,
+            precipitation_probability_max: value,
+          },
+        })));
+        const result = await getWeather(city);
+        expect(result.forecastDays).toHaveLength(5);
+        for (const day of result.forecastDays) {
+          expect(Object.values(day).slice(1)).toEqual([null, null, null, null, null]);
+        }
+      },
+    );
+
+    it.each([
+      [undefined, null], [null, null], ['0', null], [2, null], [0, false], [1, true],
+    ])('mapeia is_day %j para %j', async (value, expected) => {
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+        timezone: 'America/Sao_Paulo',
+        current: { ...current, is_day: value },
+        daily,
+      })));
+      expect((await getWeather(city)).current.isDay).toBe(expected);
+    });
+
+    it.each([undefined, null, '', '2026-02-30', '2026-13-01'])(
+      'rejeita data diária inválida %j antes de renderizar',
+      async (value) => {
+        fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+          timezone: 'America/Sao_Paulo',
+          current,
+          daily: { ...daily, time: [value, ...daily.time.slice(1)] },
+        })));
+        await expect(getWeather(city)).rejects.toMatchObject({ kind: 'invalid-response' });
+      },
+    );
+
+    it.each([undefined, null, '', ' ', '2026-02-30T09:00', '2026-10-27T25:00'])(
+      'rejeita horário atual inválido %j',
+      async (value) => {
+        fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+          timezone: 'America/Sao_Paulo',
+          current: { ...current, time: value },
+          daily,
+        })));
+        await expect(getWeather(city)).rejects.toMatchObject({ kind: 'invalid-response' });
+      },
+    );
+
+    it.each([undefined, null, '', ' '])('rejeita fuso ausente/vazio %j', async (value) => {
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+        timezone: value, current, daily,
+      })));
+      await expect(getWeather(city)).rejects.toMatchObject({ kind: 'invalid-response' });
+    });
+
     it.each([
       { timezone: 'America/Sao_Paulo', daily },
       { timezone: 'America/Sao_Paulo', current },
@@ -308,13 +427,47 @@ describe('weatherService', () => {
     await expect(searchCities('cidade inexistente')).resolves.toEqual([]);
   });
 
+  it.each([undefined, null, '', ' ', 42])(
+    'omite textos opcionais e ID inválidos %j no geocoding',
+    async (value) => {
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+        results: [{
+          ...city, name: ' São Paulo ', id: null,
+          country: value, admin1: value, timezone: value,
+        }],
+      })));
+      await expect(searchCities('São Paulo')).resolves.toEqual([city]);
+    },
+  );
+
+  it.each([
+    { ...city, name: null },
+    { ...city, name: ' ' },
+    { ...city, latitude: null },
+    { ...city, longitude: undefined },
+    { ...city, latitude: 91 },
+    { ...city, longitude: -181 },
+  ])('rejeita lista sem cidade válida %j', async (result) => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ results: [result] })));
+    await expect(searchCities('São Paulo')).rejects.toMatchObject({
+      kind: 'invalid-response',
+    });
+  });
+
+  it.each([null, {}, 42])('rejeita results inválido %j', async (results) => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ results })));
+    await expect(searchCities('São Paulo')).rejects.toMatchObject({
+      kind: 'invalid-response',
+    });
+  });
+
   it('lança WeatherServiceError quando a resposta HTTP não é bem-sucedida', async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
 
     await expect(searchCities('Lisboa')).rejects.toMatchObject({
       name: 'WeatherServiceError',
       kind: 'api',
-      message: 'Falha na busca de cidades (HTTP 503).',
+      message: 'Falha na consulta ao serviço de clima (HTTP 503).',
     });
   });
 
@@ -342,7 +495,10 @@ describe('weatherService', () => {
 
       const result = request();
       const assertion = expect(result).rejects.toEqual(
-        new WeatherServiceError('A requisição demorou demais.', 'timeout'),
+        new WeatherServiceError(
+          'A consulta demorou mais de 10 segundos. Tente novamente.',
+          'timeout',
+        ),
       );
 
       expect(signal).toBeInstanceOf(AbortSignal);
@@ -355,8 +511,16 @@ describe('weatherService', () => {
     });
 
     it.each([
-      [new DOMException('Aborted', 'AbortError'), 'A requisição demorou demais.', 'timeout'],
-      [new TypeError('Failed to fetch'), 'Falha de rede.', 'network'],
+      [
+        new DOMException('Aborted', 'AbortError'),
+        'A consulta demorou mais de 10 segundos. Tente novamente.',
+        'timeout',
+      ],
+      [
+        new TypeError('Failed to fetch'),
+        'Não foi possível conectar ao serviço de clima. Verifique sua conexão e tente novamente.',
+        'network',
+      ],
     ] as const)('normaliza a rejeição %s e limpa o timer', async (error, message, kind) => {
       fetchMock.mockRejectedValueOnce(error);
 
@@ -389,6 +553,64 @@ describe('weatherService', () => {
       fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
 
       await expect(request()).rejects.toThrow('HTTP 503');
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('mantém o limite de 10 segundos durante a leitura do corpo', async () => {
+      let signal: AbortSignal | null | undefined;
+      fetchMock.mockImplementationOnce(async (_url, options) => {
+        signal = options?.signal;
+        return new Response(
+          new ReadableStream({
+            start(controller) {
+              signal?.addEventListener('abort', () => controller.error(signal?.reason), {
+                once: true,
+              });
+            },
+          }),
+        );
+      });
+
+      const assertion = expect(request()).rejects.toMatchObject({
+        kind: 'timeout',
+        message: 'A consulta demorou mais de 10 segundos. Tente novamente.',
+      });
+
+      await vi.advanceTimersByTimeAsync(9_999);
+      expect(signal?.aborted).toBe(false);
+      expect(vi.getTimerCount()).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await assertion;
+      expect(signal?.aborted).toBe(true);
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('classifica corpo interrompido como falha de rede e limpa o timer', async () => {
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.error(new TypeError('Connection lost'));
+            },
+          }),
+        ),
+      );
+
+      await expect(request()).rejects.toMatchObject({
+        kind: 'network',
+        message:
+          'Não foi possível conectar ao serviço de clima. Verifique sua conexão e tente novamente.',
+      });
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('distingue JSON inválido de falha de rede e limpa o timer', async () => {
+      fetchMock.mockResolvedValueOnce(new Response('{'));
+
+      await expect(request()).rejects.toMatchObject({
+        kind: 'invalid-response',
+        message: 'Não foi possível ler os dados enviados pelo serviço de clima. Tente novamente.',
+      });
       expect(vi.getTimerCount()).toBe(0);
     });
   });

@@ -1,5 +1,10 @@
 import { useRef, useState } from 'react';
-import { getWeather, searchCities, WeatherServiceError } from '../services/weatherService';
+import {
+  getWeather,
+  searchCities,
+  WEATHER_ERROR_MESSAGES,
+  WeatherServiceError,
+} from '../services/weatherService';
 import type { City, QueryErrorKind, QueryState, WeatherData } from '../types/weather';
 
 type WeatherState = QueryState<WeatherData> & { cities: City[] };
@@ -14,14 +19,9 @@ type UseWeatherResult = WeatherState & {
   retry: () => Promise<void>;
 };
 
-const GENERIC_ERROR = 'Não foi possível consultar os dados meteorológicos.';
-
 function getQueryError(error: unknown): { kind: QueryErrorKind; message: string } {
-  if (error instanceof WeatherServiceError) {
-    return { kind: error.kind, message: error.message };
-  }
-
-  return { kind: 'unknown', message: GENERIC_ERROR };
+  const kind = error instanceof WeatherServiceError ? error.kind : 'unknown';
+  return { kind, message: WEATHER_ERROR_MESSAGES[kind] };
 }
 
 export function useWeather(): UseWeatherResult {

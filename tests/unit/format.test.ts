@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDayLabel, formatValue } from '../../src/lib/format';
+import { formatDayLabel, formatValue, isValidDayDate } from '../../src/lib/format';
 
 describe('formatDayLabel', () => {
   it.each([
@@ -18,8 +18,11 @@ describe('formatDayLabel', () => {
     '2026-13-01',
     '2026-1-01',
     '2026-10-27T00:00:00Z',
-  ])('rejeita data inválida %j explicitamente', (date) => {
-    expect(() => formatDayLabel(date)).toThrow(RangeError);
+    null,
+    undefined,
+  ])('mostra traço para data inválida %j', (date) => {
+    expect(isValidDayDate(date)).toBe(false);
+    expect(formatDayLabel(date)).toBe('—');
   });
 });
 
@@ -29,4 +32,11 @@ describe('formatValue', () => {
     expect(formatValue(0, '%')).toBe('0 %');
     expect(formatValue(null, '°F')).toBe('—');
   });
+
+  it.each([null, undefined, Number.NaN, Infinity, -Infinity])(
+    'não apresenta o valor indisponível %s',
+    (value) => {
+      expect(formatValue(value, '%')).toBe('—');
+    },
+  );
 });

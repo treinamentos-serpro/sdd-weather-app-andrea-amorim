@@ -93,7 +93,8 @@ describe('useWeather', () => {
       status: 'error',
       cities: [cityA, cityB],
       kind: 'network',
-      message: 'Falha de rede.',
+      message:
+        'Não foi possível conectar ao serviço de clima. Verifique sua conexão e tente novamente.',
     });
   });
 
@@ -111,7 +112,8 @@ describe('useWeather', () => {
     expect(result.current).toMatchObject({
       status: 'error',
       kind: 'network',
-      message: 'Falha de rede.',
+      message:
+        'Não foi possível conectar ao serviço de clima. Verifique sua conexão e tente novamente.',
     });
 
     await act(async () => {
@@ -119,6 +121,7 @@ describe('useWeather', () => {
     });
 
     expect(searchCities).toHaveBeenCalledTimes(2);
+    expect(searchCities).toHaveBeenNthCalledWith(2, 'São Paulo');
     expect(result.current.status).toBe('success');
     expect(result.current).toMatchObject({ status: 'success', data: weatherFor(cityA) });
   });
@@ -136,7 +139,8 @@ describe('useWeather', () => {
     expect(result.current).toMatchObject({
       status: 'error',
       kind: 'network',
-      message: 'Falha de rede.',
+      message:
+        'Não foi possível conectar ao serviço de clima. Verifique sua conexão e tente novamente.',
     });
     expect(getWeather).toHaveBeenLastCalledWith(cityB);
 
@@ -145,6 +149,8 @@ describe('useWeather', () => {
     });
 
     expect(getWeather).toHaveBeenCalledTimes(2);
+    expect(getWeather).toHaveBeenNthCalledWith(2, cityB);
+    expect(searchCities).not.toHaveBeenCalled();
     expect(result.current.status).toBe('success');
     expect(result.current).toMatchObject({ status: 'success', data: weatherFor(cityB) });
   });
@@ -219,7 +225,67 @@ describe('useWeather', () => {
     expect(result.current).toMatchObject({
       status: 'error',
       kind: 'unknown',
-      message: 'Não foi possível consultar os dados meteorológicos.',
+      message: 'Não foi possível consultar os dados meteorológicos. Tente novamente.',
     });
+  });
+
+  it.each([
+    ['timeout', 'A consulta demorou mais de 10 segundos. Tente novamente.'],
+    ['api', 'O serviço de clima está indisponível no momento. Tente novamente em instantes.'],
+    [
+      'invalid-response',
+      'Não foi possível ler os dados enviados pelo serviço de clima. Tente novamente.',
+    ],
+  ] as const)('expõe uma mensagem amigável para %s sem detalhes internos', async (kind, message) => {
+    vi.mocked(searchCities).mockRejectedValueOnce(
+      new WeatherServiceError('Internal provider detail', kind),
+    );
+    const { result } = renderHook(() => useWeather());
+
+    await act(async () => result.current.search('São Paulo'));
+
+    expect(result.current).toMatchObject({ status: 'error', kind, message });
+    expect(result.current).not.toHaveProperty('data');
+  });
+
+  it('refaz a busca completa quando o forecast da primeira cidade falha', async () => {
+    vi.mocked(searchCities).mockResolvedValue([cityA, cityB]);
+    vi.mocked(getWeather)
+      .mockRejectedValueOnce(new WeatherServiceError('Offline', 'network'))
+      .mockResolvedValueOnce(weatherFor(cityA));
+    const { result } = renderHook(() => useWeather());
+
+    await act(async () => result.current.search('São Paulo'));
+    expect(result.current.status).toBe('error');
+    await act(async () => result.current.retry());
+
+    expect(searchCities).toHaveBeenCalledTimes(2);
+    expect(searchCities).toHaveBeenNthCalledWith(2, 'São Paulo');
+    expect(getWeather).toHaveBeenNthCalledWith(2, cityA);
+    expect(result.current).toMatchObject({ status: 'success', data: weatherFor(cityA) });
+  });
+
+  it('ignora uma falha obsoleta e retry mantém a seleção mais recente', async () => {
+    let rejectA: (error: Error) => void = () => {};
+    vi.mocked(getWeather)
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => (rejectA = reject)))
+      .mockRejectedValueOnce(new WeatherServiceError('Offline', 'network'))
+      .mockResolvedValueOnce(weatherFor(cityB));
+    const { result } = renderHook(() => useWeather());
+    let pendingA: Promise<void>;
+
+    act(() => {
+      pendingA = result.current.selectCity(cityA);
+    });
+    await act(async () => result.current.selectCity(cityB));
+    await act(async () => {
+      rejectA(new WeatherServiceError('Late timeout', 'timeout'));
+      await pendingA;
+    });
+
+    expect(result.current).toMatchObject({ status: 'error', kind: 'network' });
+    await act(async () => result.current.retry());
+    expect(getWeather).toHaveBeenLastCalledWith(cityB);
+    expect(result.current).toMatchObject({ status: 'success', data: weatherFor(cityB) });
   });
 });

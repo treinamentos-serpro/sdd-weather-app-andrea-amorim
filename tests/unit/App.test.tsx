@@ -266,7 +266,7 @@ describe('App', () => {
     );
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Falha no serviço (HTTP 503).',
+      'O serviço de clima está indisponível no momento. Tente novamente em instantes.',
     );
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Temperatura atual')).not.toBeInTheDocument();

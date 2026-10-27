@@ -22,6 +22,20 @@ describe('convertTemperature', () => {
     expect(convertTemperature(null, 'celsius')).toBeNull();
     expect(convertTemperature(null, 'fahrenheit')).toBeNull();
   });
+
+  it.each([undefined, Number.NaN, Infinity, -Infinity])(
+    'normaliza %s em ambas as unidades',
+    (value) => {
+      expect(convertTemperature(value, 'celsius')).toBeNull();
+      expect(convertTemperature(value, 'fahrenheit')).toBeNull();
+      expect(formatTemperature(value, 'celsius')).toBe('—');
+      expect(formatTemperature(value, 'fahrenheit')).toBe('—');
+    },
+  );
+
+  it('não propaga overflow da conversão', () => {
+    expect(convertTemperature(Number.MAX_VALUE, 'fahrenheit')).toBeNull();
+  });
 });
 
 describe('formatTemperature', () => {

@@ -28,7 +28,7 @@ export default function CurrentWeather({ city, current, unit }: CurrentWeatherPr
     >
       <p className="text-sm text-slate-300">Clima atual</p>
       <h2 id={headingId} className="break-words text-2xl font-semibold">
-        {city.name}
+        {city.name.trim() || 'Cidade indisponível'}
       </h2>
       {(city.region || city.country) && (
         <p className="break-words text-slate-300">

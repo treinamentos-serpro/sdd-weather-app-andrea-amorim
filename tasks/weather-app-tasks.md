@@ -181,6 +181,12 @@ antes de seus pré-requisitos.
     fixture; campos esperados ausentes ou null resultam em `null`.
   - Resposta sem estrutura obrigatória aprovada (por exemplo `current` ou a
     estrutura de forecast decidida) é rejeitada como resposta inválida.
+  - Cobrir todos os campos consumidos no inventário de nulabilidade da spec,
+    incluindo arrays nulos/curtos, tipos incorretos, zeros e números não finitos.
+    Validar datas antes de entregar a previsão aos componentes.
+  - Formatadores e componentes não exibem NaN/undefined/infinito nem inventam
+    zeros; testar medições ausentes em Celsius e Fahrenheit e data inválida
+    recebida diretamente pelo card.
 - **Rastreabilidade:** AC2.1–AC2.3, AC3.1–AC3.3.
 - **Dependências:** T-01, T-02, T-05.
 - **Arquivos prováveis:** `src/services/openMeteo.ts`.
@@ -198,11 +204,14 @@ antes de seus pré-requisitos.
   - Cancelamento manual por troca de cidade não resulta em `QueryState.error`;
     timeout resulta no erro aprovado em T-02.
   - Mensagem exposta ao usuário não inclui corpo/payload retornado pelo provedor.
-  - Recorte aprovado nesta implementação: usar `fetchWithTimeout` nas duas
-    consultas, com `AbortController` e prazo de 10 segundos; converter
-    `AbortError` em `WeatherServiceError("A requisição demorou demais.")` e
-    falhas de rede em `WeatherServiceError("Falha de rede.")`, limpando o timer
-    no `finally`. Cancelamento manual permanece fora deste recorte.
+  - Recorte aprovado nesta implementação: usar `fetchJsonWithTimeout` nas duas
+    consultas, com `AbortController` e prazo de 10 segundos até concluir a
+    leitura do JSON; distinguir timeout, rede (inclusive corpo interrompido),
+    HTTP e JSON inválido, limpando o timer no `finally`.
+  - Mensagens amigáveis por categoria orientam a recuperação e o timeout
+    informa o limite de 10 segundos. Cancelamento manual fica fora do recorte.
+  - Validar com timers falsos o limite exato, corpo lento/interrompido e limpeza
+    do timer em sucesso e falha, sem chamadas reais à API.
 - **Rastreabilidade:** AC5.4; RNF4.
 - **Dependências:** T-02, T-08, T-09.
 - **Arquivos prováveis:** `src/services/openMeteo.ts`.
@@ -240,6 +249,11 @@ antes de seus pré-requisitos.
   - Com requests de A e B pendentes, resolver B e depois A mantém B como cidade
     e dados exibidos.
   - Em falha para B, dados de A não permanecem apresentados como dados atuais.
+  - O botão “Tentar novamente” repete a última busca completa ou apenas a
+    consulta da cidade selecionada, com os mesmos argumentos, sem retry
+    automático e sem aceitar resultados obsoletos.
+  - Testes simulam rede offline na busca e no forecast, repetição de falha e
+    recuperação pelo botão; loading não mantém dados antigos nem o botão.
 - **Rastreabilidade:** AC2.1–AC2.3, AC3.1–AC3.3, AC5.1–AC5.4.
 - **Dependências:** T-05, T-09, T-10, T-11.
 - **Arquivos prováveis:** `src/hooks/useWeatherApp.ts`.

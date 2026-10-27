@@ -107,6 +107,28 @@ marcados com OQ dependem de aprovação antes de virarem testes de aceite finais
   **Then** o campo ausente mostra “—” e os demais valores disponíveis são
   exibidos sem interromper a previsão.
 
+#### Política de ausência nos campos consumidos da Open-Meteo (AC2.3/AC3.3)
+
+Toda entrada externa é validada em runtime; não se presume que o provedor
+sempre entregue seus campos. O inventário abaixo cobre os campos consumidos,
+não os metadados ignorados nem endpoints fora do escopo.
+
+| Origem | Campos | Normalização e apresentação |
+|---|---|---|
+| Geocoding | `results` | Ausente ou `[]`: estado vazio; null/tipo inválido: erro de resposta. |
+| `results[]` | `name`, `latitude`, `longitude` | Nome não vazio e coordenadas finitas dentro dos limites geográficos são obrigatórios. Descartar entradas inválidas; se nenhuma entrada de uma lista não vazia for válida, exibir erro, não “nenhuma cidade”. |
+| `results[]` | `id`, `country`, `admin1`, `timezone` | Omitir ID não finito e textos nulos, ausentes ou vazios; rótulos usam apenas os atributos disponíveis. |
+| Forecast | `current`, `daily`, `timezone`, `current.time`, `daily.time` | Estrutura, fuso não vazio, horário local válido e cinco datas válidas são obrigatórios; ausência/null/invalidez gera erro amigável com retry, sem inventar datas ou localização. |
+| `current` | `temperature_2m`, `apparent_temperature`, `relative_humidity_2m`, `weather_code`, `precipitation`, `wind_speed_10m`, `wind_direction_10m`, `pressure_msl` | Null, ausência, tipo não numérico ou número não finito → `null`; medições exibidas mostram “—”. Zero real é preservado. Direção do vento é mapeada, mas não exibida nesta UI. |
+| `current` | `is_day` | Somente 0/1 viram false/true; demais valores → `null`, sem inferir período noturno. |
+| `daily` | `temperature_2m_min`, `temperature_2m_max`, `weather_code`, `precipitation_sum`, `precipitation_probability_max` | Array ausente/null/inválido, posição ausente/null ou número inválido → `null` nessa medição; demais dias e campos permanecem. Acumulado de chuva é mapeado, mas não exibido nesta UI. |
+
+Códigos WMO ausentes mostram “—”; códigos numéricos desconhecidos mostram
+“Condição desconhecida”. Conversão e formatação também protegem contra valores
+indefinidos, NaN, infinito e overflow: nunca mostrar `undefined`, `NaN` ou `∞`.
+O componente diário usa “—” e omite `<time>` caso receba diretamente uma data
+inválida; o serviço rejeita essa data antes de fornecer dados à UI.
+
 ### RF4 — Alternar unidade de temperatura (US4)
 
 - **AC4.1 — Given** não há unidade previamente selecionada,
@@ -248,10 +270,15 @@ comportamentos afetados. Elas não impedem o fechamento deste módulo.
    escopo.
 6. **OQ6 — Como funcionarão nova tentativa, timeout e cache em falhas de rede ou
    da Open-Meteo?** Define recuperação, atualidade dos dados e mensagens de erro.
-   Decisão parcial: geocodificação e forecast usam timeout de 10 segundos com
-   `AbortController`. `AbortError` gera “A requisição demorou demais.” e falhas
-   de rede geram “Falha de rede.”, ambas como `WeatherServiceError`. O timer é
-   sempre limpo ao concluir o fetch. Retry e cache continuam pendentes.
+   Decisão para falhas: cada chamada de geocodificação e forecast tem limite de
+   10 segundos, incluindo a leitura do corpo JSON, com `AbortController` e
+   limpeza do timer em sucesso ou falha. A interface distingue demora, conexão,
+   indisponibilidade do serviço e resposta inválida, com mensagens em pt-BR e
+   orientação para recuperação, sem detalhes técnicos do provedor.
+   “Tentar novamente” repete a última operação do usuário: busca (geocodificação
+   e forecast da primeira cidade) ou seleção de cidade (somente forecast).
+   Não há retry automático; durante loading o botão não é exibido. Respostas
+   obsoletas não substituem a operação mais recente. Cache continua pendente.
 7. **OQ7 — Qual fuso horário será usado e como será indicada a data/hora de
    atualização?** Afeta o significado de “hoje” e a interpretação da previsão.
 8. **OQ8 — Qual matriz de navegadores e versões será suportada?** Sem essa
