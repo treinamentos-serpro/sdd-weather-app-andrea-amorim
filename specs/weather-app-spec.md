@@ -148,6 +148,13 @@ inválida; o serviço rejeita essa data antes de fornecer dados à UI.
 
 ### RF5 — Comunicar estados da consulta (US6)
 
+- **Refinamento de UX:** a região principal informa `aria-busy` durante loading.
+  Ao concluir uma consulta, foco vai ao conteúdo se ainda estiver na busca,
+  no próprio conteúdo ou sem controle ativo; não interromper quem navegou para
+  outro controle durante a espera. Trocar unidade não move foco. Controles
+  desabilitados não recebem estilo hover de ação disponível; unidade selecionada
+  mantém contraste no hover.
+
 - **AC5.1 — Given** uma consulta de geocodificação ou meteorológica permanece pendente,
   **When** a interface aguarda a resposta,
   **Then** o estado de carregamento é exibido até a consulta resolver ou falhar.

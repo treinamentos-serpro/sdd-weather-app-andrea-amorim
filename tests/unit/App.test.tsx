@@ -57,6 +57,8 @@ describe('App', () => {
     expect(screen.getByRole('search', { name: 'Buscar cidade' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '°C — Celsius', pressed: true })).toBeInTheDocument();
     expect(screen.getByRole('main')).toHaveTextContent('Consulte o clima de uma cidade');
+    expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'false');
+    expect(screen.getByRole('main')).not.toHaveFocus();
     expect(screen.queryByRole('article')).not.toBeInTheDocument();
     expect(screen.queryByRole('complementary')).not.toBeInTheDocument();
   });
@@ -75,6 +77,7 @@ describe('App', () => {
 
     expect(screen.getByRole('status')).toHaveTextContent('Carregando dados meteorológicos...');
     expect(screen.getByRole('searchbox')).toBeDisabled();
+    expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'true');
     expect(screen.queryByLabelText('Temperatura atual')).not.toBeInTheDocument();
 
     await act(async () => {
@@ -82,6 +85,49 @@ describe('App', () => {
     });
 
     expect(await screen.findByRole('region', { name: 'São Paulo' })).toBeInTheDocument();
+    expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'false');
+    expect(screen.getByRole('main')).toHaveFocus();
+  });
+
+  it.each(['empty', 'error'] as const)(
+    'encerra aria-busy e foca o conteúdo ao concluir em %s',
+    async (status) => {
+      let finish: () => void = () => {};
+      vi.mocked(searchCities).mockImplementationOnce(() => new Promise((resolve, reject) => {
+        finish = () => status === 'empty' ? resolve([]) : reject(new Error('Offline'));
+      }));
+      render(<App />);
+      await submitSearch('Atlantis');
+      expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'true');
+
+      await act(async () => finish());
+
+      expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'false');
+      expect(screen.getByRole('main')).toHaveFocus();
+      expect(screen.getByRole('main')).toHaveTextContent(
+        status === 'empty' ? 'Nenhuma cidade encontrada' : 'Não foi possível consultar os dados',
+      );
+    },
+  );
+
+  it('não rouba foco do toggle quando o usuário navega durante loading', async () => {
+    let finish: (cities: City[]) => void = () => {};
+    vi.mocked(searchCities).mockImplementationOnce(() => new Promise((resolve) => {
+      finish = resolve;
+    }));
+    vi.mocked(getWeather).mockResolvedValueOnce(mockWeatherData);
+    render(<App />);
+    await submitSearch('São Paulo');
+    const fahrenheit = screen.getByRole('button', { name: '°F — Fahrenheit' });
+    await userEvent.setup().click(fahrenheit);
+
+    await act(async () => finish([cityA]));
+
+    expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'false');
+    expect(fahrenheit).toHaveFocus();
+    expect(screen.getByLabelText('Temperatura atual')).toHaveTextContent('78,8 °F');
+    await userEvent.setup().click(screen.getByRole('button', { name: '°C — Celsius' }));
+    expect(screen.getByRole('button', { name: '°C — Celsius' })).toHaveFocus();
   });
 
   it('busca e apresenta as cidades e o clima da primeira opção', async () => {

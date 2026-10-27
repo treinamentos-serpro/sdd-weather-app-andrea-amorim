@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import CurrentWeather from './components/CurrentWeather';
 import CityResults from './components/CityResults';
 import ForecastList from './components/ForecastList';
@@ -14,6 +14,21 @@ export default function App() {
   const [unit, setUnit] = useState<Unit>('celsius');
   const weather = useWeather();
   const mainRef = useRef<HTMLElement>(null);
+  const previousStatus = useRef(weather.status);
+
+  useEffect(() => {
+    if (previousStatus.current === 'loading' && weather.status !== 'loading') {
+      const activeElement = document.activeElement;
+      if (
+        activeElement === document.body ||
+        activeElement === mainRef.current ||
+        activeElement?.closest('[role="search"]')
+      ) {
+        mainRef.current?.focus();
+      }
+    }
+    previousStatus.current = weather.status;
+  }, [weather.status]);
 
   function renderContent() {
     switch (weather.status) {
@@ -95,6 +110,7 @@ export default function App() {
           ref={mainRef}
           id="main-content"
           aria-label="Previsão do tempo"
+          aria-busy={weather.status === 'loading'}
           tabIndex={-1}
           className="space-y-6 rounded-2xl focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-4 focus:ring-offset-night-900"
         >

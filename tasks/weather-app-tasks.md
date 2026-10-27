@@ -221,6 +221,16 @@ antes de seus pré-requisitos.
 
 ## Entrega 4 — Hook de orquestração
 
+### Refinamento de UX de baixo risco
+
+- Derivar `aria-busy` no conteúdo durante loading e devolver foco ao conteúdo
+  após busca/seleção/retry, sem roubar foco de outro controle durante a espera.
+- Aplicar hover somente em busca habilitada e preservar contraste no toggle
+  selecionado. Validar loading, conclusão, troca de unidade e foco preservado
+  com Vitest e Playwright.
+- Não memoizar sem evidência de custo relevante; manter os formatadores Intl
+  compartilhados existentes.
+
 ### T-11 — Orquestrar busca de cidades no hook
 
 - **Descrição:** Implementar estado e ação de busca, incluindo validação,

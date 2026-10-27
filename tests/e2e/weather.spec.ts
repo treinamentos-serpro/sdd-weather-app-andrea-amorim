@@ -223,13 +223,57 @@ test('busca uma cidade, mostra a previsão e converte a temperatura para Fahrenh
   await page.getByRole('button', { name: 'Buscar' }).click();
 
   await expect(page.getByRole('heading', { name: 'São Paulo' })).toBeVisible();
+  await expect(page.getByRole('main')).toBeFocused();
+  await expect(page.getByRole('main')).toHaveAttribute('aria-busy', 'false');
   await expect(page.getByRole('region', { name: 'Previsão diária' })).toBeVisible();
   await expect(page.getByRole('article')).toHaveCount(5);
   await expect(page.getByLabel('Temperatura atual')).toHaveText('0 °C');
 
   await page.getByRole('button', { name: '°F — Fahrenheit' }).click();
   await expect(page.getByLabel('Temperatura atual')).toHaveText('32 °F');
+  await expect(page.getByRole('button', { name: '°F — Fahrenheit' })).toBeFocused();
 });
+
+for (const moveFocus of [false, true]) {
+  test(`loading sinaliza ocupado e ${moveFocus ? 'preserva foco no toggle' : 'foca o resultado'}`, async ({
+    page,
+    isMobile,
+  }) => {
+    let release: () => void = () => {};
+    const pending = new Promise<void>((resolve) => { release = resolve; });
+    await mockWeather(page);
+    await page.route('https://api.open-meteo.com/**', async (route) => {
+      await pending;
+      await route.fulfill({ json: forecast });
+    });
+    await page.goto('/');
+    const main = page.getByRole('main');
+    const searchButton = page.getByRole('button', { name: 'Buscar' });
+    await page.getByRole('searchbox', { name: 'Cidade' }).fill('São Paulo');
+    await searchButton.click();
+    await expect(main).toHaveAttribute('aria-busy', 'true');
+    await expect(page.getByRole('status')).toContainText('Carregando');
+    await expect(searchButton).toBeDisabled();
+    if (!isMobile) {
+      const background = await searchButton.evaluate((button) => getComputedStyle(button).backgroundColor);
+      await searchButton.hover({ force: true });
+      expect(await searchButton.evaluate((button) => getComputedStyle(button).backgroundColor)).toBe(background);
+    }
+
+    const toggle = page.getByRole('button', { name: '°F — Fahrenheit' });
+    if (moveFocus) {
+      await toggle.focus();
+      await page.keyboard.press('Enter');
+    }
+    release();
+
+    await expect(page.getByLabel('Temperatura atual')).toHaveText(moveFocus ? '32 °F' : '0 °C');
+    await expect(main).toHaveAttribute('aria-busy', 'false');
+    await expect(moveFocus ? toggle : main).toBeFocused();
+    await expect(searchButton).toBeEnabled();
+    await expect(page.getByRole('status').filter({ hasText: 'Carregando' })).toHaveCount(0);
+  });
+}
 
 test('rede offline encerra loading e o botão repete a busca após reconexão', async ({
   page,

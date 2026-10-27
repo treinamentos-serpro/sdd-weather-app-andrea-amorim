@@ -317,6 +317,15 @@ os critérios correspondentes deverão ser substituídos pelo contrato horário.
 
 ## State Management
 
+Para feedback acessível, `App` deriva `aria-busy` do status e observa a
+transição de loading para um estado concluído para focar o `main` existente
+(`tabIndex=-1`). Preserva foco em outros controles, inclusive o toggle de
+unidade. Loading continua com `role=status`. Hover de busca só se aplica quando
+habilitada; hover da unidade selecionada mantém fundo de destaque.
+Não adicionar memoização especulativa: há apenas cinco cards, formatadores Intl
+já são compartilhados e a edição da busca é estado local. Medir com Profiler
+antes de introduzir `memo`/`useMemo`/callbacks estáveis.
+
 O estado da tela vive em `useWeatherApp`; componentes recebem valores e ações
 por props e não mantêm cópias de dados de API. O hook mantém:
 
