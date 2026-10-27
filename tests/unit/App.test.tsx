@@ -2,7 +2,11 @@ import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../src/App';
-import { getWeather, searchCities } from '../../src/services/weatherService';
+import {
+  getWeather,
+  searchCities,
+  WeatherServiceError,
+} from '../../src/services/weatherService';
 import { mockWeatherData } from '../../src/mocks/weather';
 import type { City, WeatherData } from '../../src/types/weather';
 
@@ -176,6 +180,94 @@ describe('App', () => {
     expect(screen.getByLabelText('Temperatura atual')).toHaveTextContent('26 °C');
     expect(getWeather).toHaveBeenCalledExactlyOnceWith(cityA);
     expect(searchCities).toHaveBeenCalledExactlyOnceWith('São Paulo');
+  });
+
+  it('converte todas as temperaturas visíveis nos valores-limite e restaura Celsius', async () => {
+    const weatherWithBoundaryTemperatures: WeatherData = {
+      ...mockWeatherData,
+      current: {
+        ...mockWeatherData.current,
+        temperatureC: 0,
+        apparentTemperatureC: 100,
+      },
+      forecastDays: mockWeatherData.forecastDays.map((day, index) => ({
+        ...day,
+        maximumTemperatureC: index === 0 ? 100 : index === 1 ? 0 : -40,
+        minimumTemperatureC: index === 0 ? -40 : 0,
+      })),
+    };
+    vi.mocked(searchCities).mockResolvedValue([cityA]);
+    vi.mocked(getWeather).mockResolvedValue(weatherWithBoundaryTemperatures);
+    render(<App />);
+
+    await submitSearch('São Paulo');
+    expect(await screen.findByLabelText('Temperatura atual')).toHaveTextContent('0 °C');
+    expect(screen.getByText('Sensação térmica: 100 °C')).toBeInTheDocument();
+
+    const user = userEvent.setup();
+    const getForecastTemperatures = () =>
+      screen.getAllByRole('article').map((card) =>
+        within(card)
+          .getAllByRole('definition')
+          .slice(0, 2)
+          .map((value) => value.textContent),
+      );
+
+    expect(getForecastTemperatures()).toEqual([
+      ['100 °C', '-40 °C'],
+      ['0 °C', '0 °C'],
+      ['-40 °C', '0 °C'],
+      ['-40 °C', '0 °C'],
+      ['-40 °C', '0 °C'],
+    ]);
+
+    await user.click(screen.getByRole('button', { name: '°F — Fahrenheit' }));
+    expect(screen.getByLabelText('Temperatura atual')).toHaveTextContent('32 °F');
+    expect(screen.getByText('Sensação térmica: 212 °F')).toBeInTheDocument();
+    expect(getForecastTemperatures()).toEqual([
+      ['212 °F', '-40 °F'],
+      ['32 °F', '32 °F'],
+      ['-40 °F', '32 °F'],
+      ['-40 °F', '32 °F'],
+      ['-40 °F', '32 °F'],
+    ]);
+
+    await user.click(screen.getByRole('button', { name: '°C — Celsius' }));
+    expect(screen.getByLabelText('Temperatura atual')).toHaveTextContent('0 °C');
+    expect(screen.getByText('Sensação térmica: 100 °C')).toBeInTheDocument();
+    expect(getForecastTemperatures()).toEqual([
+      ['100 °C', '-40 °C'],
+      ['0 °C', '0 °C'],
+      ['-40 °C', '0 °C'],
+      ['-40 °C', '0 °C'],
+      ['-40 °C', '0 °C'],
+    ]);
+    expect(getWeather).toHaveBeenCalledExactlyOnceWith(cityA);
+  });
+
+  it('encerra loading e oculta dados anteriores se a consulta da nova cidade falha', async () => {
+    vi.mocked(searchCities).mockResolvedValue([cityA, cityB]);
+    vi.mocked(getWeather)
+      .mockResolvedValueOnce(mockWeatherData)
+      .mockRejectedValueOnce(new WeatherServiceError('Falha no serviço (HTTP 503).', 'api'));
+    render(<App />);
+
+    await submitSearch('São Paulo');
+    expect(await screen.findByLabelText('Temperatura atual')).toHaveTextContent('26 °C');
+
+    const user = userEvent.setup();
+    await user.click(
+      screen.getByRole('button', { name: 'Rio de Janeiro, Rio de Janeiro, Brasil' }),
+    );
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Falha no serviço (HTTP 503).',
+    );
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Temperatura atual')).not.toBeInTheDocument();
+    expect(screen.queryByRole('article')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Rio de Janeiro, Rio de Janeiro, Brasil' }))
+      .toBeInTheDocument();
   });
 
   it('não muda de estado ao tentar enviar um termo vazio', async () => {

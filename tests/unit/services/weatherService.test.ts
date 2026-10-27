@@ -166,6 +166,60 @@ describe('weatherService', () => {
       });
     });
 
+    it('mantém os campos recebidos e normaliza campos ausentes em uma resposta parcial', async () => {
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            timezone: 'America/Sao_Paulo',
+            current: {
+              time: current.time,
+              temperature_2m: 18,
+              relative_humidity_2m: null,
+              weather_code: 61,
+              is_day: 1,
+            },
+            daily: {
+              time: daily.time,
+              temperature_2m_min: [null, -2],
+              temperature_2m_max: [25],
+              weather_code: [61, null, 3],
+              precipitation_sum: [4.5],
+              precipitation_probability_max: [80, 0],
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+
+      const result = await getWeather(city);
+
+      expect(result.current).toMatchObject({
+        temperatureC: 18,
+        apparentTemperatureC: null,
+        relativeHumidityPercent: null,
+        weatherCode: 61,
+        precipitationMm: null,
+        isDay: true,
+      });
+      expect(result.forecastDays[0]).toMatchObject({
+        date: daily.time[0],
+        minimumTemperatureC: null,
+        maximumTemperatureC: 25,
+        weatherCode: 61,
+        precipitationSumMm: 4.5,
+        precipitationProbabilityMaxPercent: 80,
+      });
+      expect(result.forecastDays[1]).toMatchObject({
+        date: daily.time[1],
+        minimumTemperatureC: -2,
+        maximumTemperatureC: null,
+        weatherCode: null,
+        precipitationSumMm: null,
+        precipitationProbabilityMaxPercent: 0,
+      });
+      expect(result.forecastDays).toHaveLength(5);
+    });
+
     it.each([
       { timezone: 'America/Sao_Paulo', daily },
       { timezone: 'America/Sao_Paulo', current },
@@ -257,7 +311,11 @@ describe('weatherService', () => {
   it('lança WeatherServiceError quando a resposta HTTP não é bem-sucedida', async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
 
-    await expect(searchCities('Lisboa')).rejects.toBeInstanceOf(WeatherServiceError);
+    await expect(searchCities('Lisboa')).rejects.toMatchObject({
+      name: 'WeatherServiceError',
+      kind: 'api',
+      message: 'Falha na busca de cidades (HTTP 503).',
+    });
   });
 
   describe.each([
