@@ -6,10 +6,10 @@ import { getWeather, searchCities } from '../../src/services/weatherService';
 import { mockWeatherData } from '../../src/mocks/weather';
 import type { City, WeatherData } from '../../src/types/weather';
 
-vi.mock('../../src/services/weatherService', () => ({
-  getWeather: vi.fn(),
-  searchCities: vi.fn(),
-}));
+vi.mock('../../src/services/weatherService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/services/weatherService')>();
+  return { ...actual, getWeather: vi.fn(), searchCities: vi.fn() };
+});
 
 afterEach(cleanup);
 
@@ -117,7 +117,9 @@ describe('App', () => {
 
     await submitSearch('São Paulo');
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Falha simulada na consulta.');
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Não foi possível consultar os dados meteorológicos.',
+    );
     await userEvent.setup().click(screen.getByRole('button', { name: 'Tentar novamente' }));
 
     expect(await screen.findByRole('region', { name: 'São Paulo' })).toBeInTheDocument();

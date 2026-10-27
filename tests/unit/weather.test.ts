@@ -54,7 +54,7 @@ describe('Contratos meteorológicos', () => {
       message: string;
     }>();
     expectTypeOf<QueryErrorKind>().toEqualTypeOf<
-      'network' | 'api' | 'timeout' | 'invalid-response'
+      'network' | 'api' | 'timeout' | 'invalid-response' | 'unknown'
     >();
     expectTypeOf<
       Extract<QueryState<WeatherData>, { status: 'idle' | 'loading' | 'empty' }>

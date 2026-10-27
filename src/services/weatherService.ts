@@ -1,4 +1,10 @@
-import type { City, CurrentWeather, ForecastDay, WeatherData } from '../types/weather';
+import type {
+  City,
+  CurrentWeather,
+  ForecastDay,
+  QueryErrorKind,
+  WeatherData,
+} from '../types/weather';
 
 const GEOCODING_URL = 'https://geocoding-api.open-meteo.com/v1/search';
 const FORECAST_URL = 'https://api.open-meteo.com/v1/forecast';
@@ -8,10 +14,13 @@ const DAILY_FIELDS =
   'weather_code,temperature_2m_min,temperature_2m_max,precipitation_sum,precipitation_probability_max';
 
 export class WeatherServiceError extends Error {
-  constructor(message: string) {
+  constructor(message: string, kind: QueryErrorKind) {
     super(message);
     this.name = 'WeatherServiceError';
+    this.kind = kind;
   }
+
+  readonly kind: QueryErrorKind;
 }
 
 async function fetchWithTimeout(url: string | URL): Promise<Response> {
@@ -22,9 +31,9 @@ async function fetchWithTimeout(url: string | URL): Promise<Response> {
     return await fetch(url, { signal: controller.signal });
   } catch (error) {
     if (isRecord(error) && error.name === 'AbortError') {
-      throw new WeatherServiceError('A requisição demorou demais.');
+      throw new WeatherServiceError('A requisição demorou demais.', 'timeout');
     }
-    throw new WeatherServiceError('Falha de rede.');
+    throw new WeatherServiceError('Falha de rede.', 'network');
   } finally {
     clearTimeout(timeout);
   }
@@ -41,7 +50,10 @@ function nullableNumber(value: unknown): number | null {
 function mapForecastDay(daily: Record<string, unknown[]>, index: number): ForecastDay {
   const date = daily.time[index];
   if (typeof date !== 'string') {
-    throw new WeatherServiceError('A resposta de previsão contém uma data inválida.');
+    throw new WeatherServiceError(
+      'A resposta de previsão contém uma data inválida.',
+      'invalid-response',
+    );
   }
 
   return {
@@ -58,7 +70,10 @@ function mapForecastDay(daily: Record<string, unknown[]>, index: number): Foreca
 
 function mapCurrent(current: Record<string, unknown>): CurrentWeather {
   if (typeof current.time !== 'string') {
-    throw new WeatherServiceError('A resposta de clima atual contém um horário inválido.');
+    throw new WeatherServiceError(
+      'A resposta de clima atual contém um horário inválido.',
+      'invalid-response',
+    );
   }
 
   return {
@@ -106,18 +121,27 @@ export async function searchCities(name: string): Promise<City[]> {
   const response = await fetchWithTimeout(url);
 
   if (!response.ok) {
-    throw new WeatherServiceError(`Falha na busca de cidades (HTTP ${response.status}).`);
+    throw new WeatherServiceError(
+      `Falha na busca de cidades (HTTP ${response.status}).`,
+      'api',
+    );
   }
 
   let payload: unknown;
   try {
     payload = await response.json();
   } catch {
-    throw new WeatherServiceError('A resposta de geocodificação não contém JSON válido.');
+    throw new WeatherServiceError(
+      'A resposta de geocodificação não contém JSON válido.',
+      'invalid-response',
+    );
   }
 
   if (!isRecord(payload) || !Array.isArray(payload.results)) {
-    throw new WeatherServiceError('A resposta de geocodificação contém dados inválidos.');
+    throw new WeatherServiceError(
+      'A resposta de geocodificação contém dados inválidos.',
+      'invalid-response',
+    );
   }
 
   return payload.results.map(mapCity).filter((city) => city !== null);
@@ -137,14 +161,20 @@ export async function getWeather(city: City): Promise<WeatherData> {
 
   const response = await fetchWithTimeout(url);
   if (!response.ok) {
-    throw new WeatherServiceError(`Falha na consulta meteorológica (HTTP ${response.status}).`);
+    throw new WeatherServiceError(
+      `Falha na consulta meteorológica (HTTP ${response.status}).`,
+      'api',
+    );
   }
 
   let payload: unknown;
   try {
     payload = await response.json();
   } catch {
-    throw new WeatherServiceError('A resposta meteorológica não contém JSON válido.');
+    throw new WeatherServiceError(
+      'A resposta meteorológica não contém JSON válido.',
+      'invalid-response',
+    );
   }
 
   if (
@@ -154,11 +184,17 @@ export async function getWeather(city: City): Promise<WeatherData> {
     !Array.isArray(payload.daily.time) ||
     payload.daily.time.length < 5
   ) {
-    throw new WeatherServiceError('A resposta meteorológica está incompleta ou inválida.');
+    throw new WeatherServiceError(
+      'A resposta meteorológica está incompleta ou inválida.',
+      'invalid-response',
+    );
   }
 
   if (typeof payload.timezone !== 'string') {
-    throw new WeatherServiceError('A resposta meteorológica não contém um fuso horário válido.');
+    throw new WeatherServiceError(
+      'A resposta meteorológica não contém um fuso horário válido.',
+      'invalid-response',
+    );
   }
 
   const daily: Record<string, unknown[]> = {};

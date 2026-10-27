@@ -32,7 +32,7 @@ export default function App() {
         return (
           <>
             <ErrorState
-              message={weather.error ?? 'Ocorreu um erro inesperado.'}
+              message={weather.message}
               onRetry={() => {
                 void weather.retry();
                 mainRef.current?.focus();
@@ -49,16 +49,12 @@ export default function App() {
             {weather.cities.length > 0 && (
               <CityResults cities={weather.cities} onSelect={weather.selectCity} />
             )}
-            {weather.data && (
-              <>
-                <CurrentWeather
-                  city={weather.data.city}
-                  current={weather.data.current}
-                  unit={unit}
-                />
-                <ForecastList days={weather.data.forecastDays} unit={unit} />
-              </>
-            )}
+            <CurrentWeather
+              city={weather.data.city}
+              current={weather.data.current}
+              unit={unit}
+            />
+            <ForecastList days={weather.data.forecastDays} unit={unit} />
           </>
         );
     }

@@ -40,7 +40,7 @@ export interface WeatherData {
   forecastDays: ForecastDay[];
 }
 
-export type QueryErrorKind = 'network' | 'api' | 'timeout' | 'invalid-response';
+export type QueryErrorKind = 'network' | 'api' | 'timeout' | 'invalid-response' | 'unknown';
 
 export type QueryState<T> =
   | { status: 'idle' }

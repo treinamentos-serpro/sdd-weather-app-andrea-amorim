@@ -152,7 +152,7 @@ export interface WeatherData {
   forecastDays: ForecastDay[]; // Dias retornados para hoje e os quatro dias seguintes.
 }
 
-type QueryErrorKind = "network" | "api" | "timeout" | "invalid-response";
+type QueryErrorKind = "network" | "api" | "timeout" | "invalid-response" | "unknown";
 
 type QueryState<T> =
   | { status: "idle" }
@@ -357,6 +357,8 @@ OQ6.
 - **Resposta inválida (`kind: "invalid-response"`):** JSON inválido ou estrutura
   incompatível com o contrato. Encerrar loading e informar falha de leitura dos
   dados; registrar diagnóstico técnico sem exibir payload ao usuário.
+- **Erro inesperado (`kind: "unknown"`):** falha fora das categorias normalizadas
+  pelo serviço. Exibir mensagem genérica, sem propagar detalhes internos.
 - **Sem resultados:** geocoding bem-sucedido com `results: []` produz `empty`,
   não dispara forecast e não é apresentado como erro (AC1.3, AC5.3).
 - **Resposta parcial:** quando a estrutura geral é válida mas um campo esperado

@@ -178,7 +178,10 @@ describe('weatherService', () => {
     it('lança WeatherServiceError quando a resposta HTTP não é bem-sucedida', async () => {
       fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
 
-      await expect(getWeather(city)).rejects.toBeInstanceOf(WeatherServiceError);
+      await expect(getWeather(city)).rejects.toMatchObject({
+        name: 'WeatherServiceError',
+        kind: 'api',
+      });
     });
   });
 
@@ -275,7 +278,7 @@ describe('weatherService', () => {
 
       const result = request();
       const assertion = expect(result).rejects.toEqual(
-        new WeatherServiceError('A requisição demorou demais.'),
+        new WeatherServiceError('A requisição demorou demais.', 'timeout'),
       );
 
       expect(signal).toBeInstanceOf(AbortSignal);
@@ -288,12 +291,12 @@ describe('weatherService', () => {
     });
 
     it.each([
-      [new DOMException('Aborted', 'AbortError'), 'A requisição demorou demais.'],
-      [new TypeError('Failed to fetch'), 'Falha de rede.'],
-    ])('normaliza a rejeição %s e limpa o timer', async (error, message) => {
+      [new DOMException('Aborted', 'AbortError'), 'A requisição demorou demais.', 'timeout'],
+      [new TypeError('Failed to fetch'), 'Falha de rede.', 'network'],
+    ] as const)('normaliza a rejeição %s e limpa o timer', async (error, message, kind) => {
       fetchMock.mockRejectedValueOnce(error);
 
-      await expect(request()).rejects.toEqual(new WeatherServiceError(message));
+      await expect(request()).rejects.toEqual(new WeatherServiceError(message, kind));
       expect(vi.getTimerCount()).toBe(0);
     });
 
