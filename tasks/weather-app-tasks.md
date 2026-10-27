@@ -198,6 +198,11 @@ antes de seus pré-requisitos.
   - Cancelamento manual por troca de cidade não resulta em `QueryState.error`;
     timeout resulta no erro aprovado em T-02.
   - Mensagem exposta ao usuário não inclui corpo/payload retornado pelo provedor.
+  - Recorte aprovado nesta implementação: usar `fetchWithTimeout` nas duas
+    consultas, com `AbortController` e prazo de 10 segundos; converter
+    `AbortError` em `WeatherServiceError("A requisição demorou demais.")` e
+    falhas de rede em `WeatherServiceError("Falha de rede.")`, limpando o timer
+    no `finally`. Cancelamento manual permanece fora deste recorte.
 - **Rastreabilidade:** AC5.4; RNF4.
 - **Dependências:** T-02, T-08, T-09.
 - **Arquivos prováveis:** `src/services/openMeteo.ts`.

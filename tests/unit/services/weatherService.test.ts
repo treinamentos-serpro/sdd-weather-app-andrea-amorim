@@ -235,7 +235,8 @@ describe('weatherService', () => {
     expect(requestUrl.searchParams.get('count')).toBe('10');
     expect(requestUrl.searchParams.get('language')).toBe('pt');
     expect(requestUrl.searchParams.get('format')).toBe('json');
-    expect(options).toBeUndefined();
+    expect(options?.signal).toBeInstanceOf(AbortSignal);
+    expect(options?.signal?.aborted).toBe(false);
   });
 
   it('retorna lista vazia quando não há resultados', async () => {
@@ -248,5 +249,80 @@ describe('weatherService', () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
 
     await expect(searchCities('Lisboa')).rejects.toBeInstanceOf(WeatherServiceError);
+  });
+
+  describe.each([
+    ['geocodificação', () => searchCities('Lisboa')],
+    ['forecast', () => getWeather(city)],
+  ] as const)('timeout e rede — %s', (_name, request) => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('aborta somente ao atingir 10 segundos e limpa o timer', async () => {
+      let signal: AbortSignal | null | undefined;
+      fetchMock.mockImplementationOnce(
+        (_url, options) =>
+          new Promise<Response>((_resolve, reject) => {
+            signal = options?.signal;
+            signal?.addEventListener('abort', () => reject(signal?.reason), { once: true });
+          }),
+      );
+
+      const result = request();
+      const assertion = expect(result).rejects.toEqual(
+        new WeatherServiceError('A requisição demorou demais.'),
+      );
+
+      expect(signal).toBeInstanceOf(AbortSignal);
+      await vi.advanceTimersByTimeAsync(9_999);
+      expect(signal?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(signal?.aborted).toBe(true);
+      await assertion;
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it.each([
+      [new DOMException('Aborted', 'AbortError'), 'A requisição demorou demais.'],
+      [new TypeError('Failed to fetch'), 'Falha de rede.'],
+    ])('normaliza a rejeição %s e limpa o timer', async (error, message) => {
+      fetchMock.mockRejectedValueOnce(error);
+
+      await expect(request()).rejects.toEqual(new WeatherServiceError(message));
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('limpa o timer após sucesso do fetch sem abortar a requisição', async () => {
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            results: [],
+            timezone: 'Europe/Lisbon',
+            current: { time: '2026-10-27T09:00' },
+            daily: {
+              time: ['2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-10-31'],
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+
+      await expect(request()).resolves.toBeDefined();
+      expect(vi.getTimerCount()).toBe(0);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(false);
+    });
+
+    it('preserva erros HTTP e limpa o timer', async () => {
+      fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
+
+      await expect(request()).rejects.toThrow('HTTP 503');
+      expect(vi.getTimerCount()).toBe(0);
+    });
   });
 });

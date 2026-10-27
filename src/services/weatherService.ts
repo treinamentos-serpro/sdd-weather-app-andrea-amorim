@@ -14,6 +14,22 @@ export class WeatherServiceError extends Error {
   }
 }
 
+async function fetchWithTimeout(url: string | URL): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10_000);
+
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } catch (error) {
+    if (isRecord(error) && error.name === 'AbortError') {
+      throw new WeatherServiceError('A requisição demorou demais.');
+    }
+    throw new WeatherServiceError('Falha de rede.');
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -87,7 +103,7 @@ export async function searchCities(name: string): Promise<City[]> {
   if (!searchTerm) return [];
 
   const url = `${GEOCODING_URL}?name=${encodeURIComponent(searchTerm)}&count=10&language=pt&format=json`;
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url);
 
   if (!response.ok) {
     throw new WeatherServiceError(`Falha na busca de cidades (HTTP ${response.status}).`);
@@ -119,7 +135,7 @@ export async function getWeather(city: City): Promise<WeatherData> {
   url.searchParams.set('wind_speed_unit', 'kmh');
   url.searchParams.set('precipitation_unit', 'mm');
 
-  const response = await fetch(url);
+  const response = await fetchWithTimeout(url);
   if (!response.ok) {
     throw new WeatherServiceError(`Falha na consulta meteorológica (HTTP ${response.status}).`);
   }

@@ -342,13 +342,18 @@ OQ6.
 - **Rede (`kind: "network"`):** falha de conexão ou `fetch` rejeitado. Encerrar
   loading e exibir mensagem de que não foi possível conectar; não classificar
   como busca sem resultados.
+  No serviço, o helper compartilhado `fetchWithTimeout` converte a rejeição
+  em `WeatherServiceError` com a mensagem “Falha de rede.”.
 - **API (`kind: "api"`):** resposta HTTP não-2xx ou erro explícito do provedor.
   Encerrar loading e informar que o serviço não concluiu a consulta; não expor
   detalhes internos da resposta ao usuário.
 - **Timeout (`kind: "timeout"`):** distinguir o cancelamento por prazo excedido
   de cancelamento manual por troca de cidade. Encerrar loading e exibir mensagem
-  de demora/falha. O limite de tempo e eventual retry dependem de OQ6; o prazo
-  deve ser configurável, não embutido em componentes.
+  de demora/falha. Conforme decisão parcial de OQ6, `fetchWithTimeout` usa
+  `AbortController` com prazo de 10 segundos, centralizado no serviço para
+  geocodificação e forecast. Converte `AbortError` em `WeatherServiceError`
+  com “A requisição demorou demais.” e executa `clearTimeout` no `finally`.
+  Eventual retry continua pendente em OQ6.
 - **Resposta inválida (`kind: "invalid-response"`):** JSON inválido ou estrutura
   incompatível com o contrato. Encerrar loading e informar falha de leitura dos
   dados; registrar diagnóstico técnico sem exibir payload ao usuário.

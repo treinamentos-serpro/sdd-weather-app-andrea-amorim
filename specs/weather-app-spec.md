@@ -248,6 +248,10 @@ comportamentos afetados. Elas não impedem o fechamento deste módulo.
    escopo.
 6. **OQ6 — Como funcionarão nova tentativa, timeout e cache em falhas de rede ou
    da Open-Meteo?** Define recuperação, atualidade dos dados e mensagens de erro.
+   Decisão parcial: geocodificação e forecast usam timeout de 10 segundos com
+   `AbortController`. `AbortError` gera “A requisição demorou demais.” e falhas
+   de rede geram “Falha de rede.”, ambas como `WeatherServiceError`. O timer é
+   sempre limpo ao concluir o fetch. Retry e cache continuam pendentes.
 7. **OQ7 — Qual fuso horário será usado e como será indicada a data/hora de
    atualização?** Afeta o significado de “hoje” e a interpretação da previsão.
 8. **OQ8 — Qual matriz de navegadores e versões será suportada?** Sem essa
