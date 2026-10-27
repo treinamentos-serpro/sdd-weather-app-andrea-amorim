@@ -1,8 +1,11 @@
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
 import CurrentWeather from '../../src/components/CurrentWeather';
+import UnitToggle from '../../src/components/UnitToggle';
 import { mockWeatherData } from '../../src/mocks/weather';
-import type { CurrentWeather as CurrentWeatherData } from '../../src/types/weather';
+import type { CurrentWeather as CurrentWeatherData, Unit } from '../../src/types/weather';
 
 afterEach(cleanup);
 
@@ -10,7 +13,32 @@ function renderWeather(current: CurrentWeatherData = mockWeatherData.current) {
   return render(<CurrentWeather city={mockWeatherData.city} current={current} unit="celsius" />);
 }
 
+function WeatherWithUnitToggle() {
+  const [unit, setUnit] = useState<Unit>('celsius');
+  const current = {
+    ...mockWeatherData.current,
+    temperatureC: 0,
+    apparentTemperatureC: 0,
+  };
+
+  return (
+    <>
+      <UnitToggle unit={unit} onChange={setUnit} />
+      <CurrentWeather city={mockWeatherData.city} current={current} unit={unit} />
+    </>
+  );
+}
+
 describe('CurrentWeather', () => {
+  it('converte 0 °C para 32 °F ao selecionar Fahrenheit no controle de unidade', async () => {
+    const user = userEvent.setup();
+    render(<WeatherWithUnitToggle />);
+
+    await user.click(screen.getByRole('button', { name: '°F — Fahrenheit' }));
+
+    expect(screen.getByLabelText('Temperatura atual')).toHaveTextContent('32 °F');
+  });
+
   it('apresenta cidade, condição, ícone e métricas com suas unidades', () => {
     renderWeather();
 

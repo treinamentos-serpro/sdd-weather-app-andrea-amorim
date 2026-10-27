@@ -248,6 +248,12 @@ describe('weatherService', () => {
     await expect(searchCities('cidade inexistente')).resolves.toEqual([]);
   });
 
+  it('retorna lista vazia quando results está ausente', async () => {
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 200 }));
+
+    await expect(searchCities('cidade inexistente')).resolves.toEqual([]);
+  });
+
   it('lança WeatherServiceError quando a resposta HTTP não é bem-sucedida', async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
 

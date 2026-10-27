@@ -137,7 +137,15 @@ export async function searchCities(name: string): Promise<City[]> {
     );
   }
 
-  if (!isRecord(payload) || !Array.isArray(payload.results)) {
+  if (!isRecord(payload)) {
+    throw new WeatherServiceError(
+      'A resposta de geocodificação contém dados inválidos.',
+      'invalid-response',
+    );
+  }
+
+  if (payload.results === undefined) return [];
+  if (!Array.isArray(payload.results)) {
     throw new WeatherServiceError(
       'A resposta de geocodificação contém dados inválidos.',
       'invalid-response',
