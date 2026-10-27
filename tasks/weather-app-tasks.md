@@ -509,6 +509,9 @@ antes de seus pré-requisitos.
     dos presentes.
   - Fixtures reproduzem a granularidade aprovada; o mock de `fetch` é usado em
     todos os cenários e nenhum teste chama API real.
+  - Cobertura complementar: `daily.time` ausente, nulo, vazio, tipo incorreto
+    ou com quatro datas produz `invalid-response`; E2E cobre também ausência
+    de `current`/`daily`, erro amigável e recuperação pelo retry.
 - **Rastreabilidade:** AC2.1–AC2.3, AC3.1–AC3.3.
 - **Dependências:** T-09.
 - **Arquivos prováveis:** `tests/unit/services/openMeteo.test.ts`.
@@ -536,6 +539,17 @@ antes de seus pré-requisitos.
 
 - **Descrição:** Testar busca válida, inválida, vazia e falha do hook com
   serviço mockado.
+- **Cobertura complementar dos edge cases:**
+  - Vitest valida caracteres especiais no formulário e codificação da URL,
+    incluindo acentos, apóstrofo, Unicode e caracteres reservados.
+  - Playwright valida busca vazia/só espaços após sucesso sem nova requisição
+    nem perda dos dados; `results` ausente ou vazio sem consultar forecast;
+    caracteres especiais preservados até a API e resultados exibidos.
+- **Pendência de aderência à spec:** o edge case de geocoding sem resultados
+  pede preservar dados anteriores, mas `useWeather` e seu teste existente
+  limpam esses dados. Os novos testes de resultado vazio partem de `idle`;
+  não comprovam preservação após sucesso. Resolver a divergência de contrato
+  antes de considerar esse requisito integralmente coberto.
 - **Critérios de aceite:**
   - Testes verificam `idle → loading → success`, `idle → loading → empty` e
     `idle → loading → error`.

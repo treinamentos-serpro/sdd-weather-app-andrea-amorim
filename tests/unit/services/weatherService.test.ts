@@ -348,6 +348,22 @@ describe('weatherService', () => {
       await expect(getWeather(city)).rejects.toBeInstanceOf(WeatherServiceError);
     });
 
+    it.each([
+      undefined, null, [], daily.time.slice(0, 4), '2026-10-27',
+    ])('rejeita forecast com daily.time incompleto %j', async (time) => {
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+        timezone: 'America/Sao_Paulo',
+        current,
+        daily: { ...daily, time },
+      })));
+
+      await expect(getWeather(city)).rejects.toMatchObject({
+        name: 'WeatherServiceError',
+        kind: 'invalid-response',
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
     it('lança WeatherServiceError quando a resposta HTTP não é bem-sucedida', async () => {
       fetchMock.mockResolvedValueOnce(new Response(null, { status: 503 }));
 
@@ -420,6 +436,22 @@ describe('weatherService', () => {
 
     await expect(searchCities('cidade inexistente')).resolves.toEqual([]);
   });
+
+  it.each(["  São João d'Aliança  ", 'A&B + C/#?=100%', '  München 東京  '])(
+    'codifica %j sem perder caracteres nem criar parâmetros extras',
+    async (name) => {
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ results: [] })));
+
+      await expect(searchCities(name)).resolves.toEqual([]);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const url = new URL(String(fetchMock.mock.calls[0][0]));
+      expect(url.searchParams.get('name')).toBe(name.trim());
+      expect([...url.searchParams.keys()]).toEqual(['name', 'count', 'language', 'format']);
+      expect(url.hash).toBe('');
+      expect(url.searchParams.get('count')).toBe('10');
+    },
+  );
 
   it('retorna lista vazia quando results está ausente', async () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({}), { status: 200 }));

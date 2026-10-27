@@ -44,15 +44,115 @@ async function mockWeather(page: Page, geocodingPayload: unknown = { results: [c
   );
 }
 
-test('mostra estado vazio quando o geocoding não inclui results', async ({ page }) => {
-  await mockWeather(page, {});
+for (const [label, payload] of [
+  ['results ausente', {}],
+  ['results vazio', { results: [] }],
+] as const) {
+  test(`geocoding sem resultados (${label}) não consulta forecast`, async ({ page }) => {
+    let forecastRequests = 0;
+    await mockWeather(page, payload);
+    await page.route('https://api.open-meteo.com/**', (route) => {
+      forecastRequests++;
+      return route.fulfill({ json: forecast });
+    });
+    await page.goto('/');
+    await page.getByRole('searchbox', { name: 'Cidade' }).fill('Atlantis');
+    await page.getByRole('button', { name: 'Buscar' }).click();
+
+    await expect(page.getByRole('status')).toContainText('Nenhuma cidade encontrada');
+    await expect(page.getByLabel('Temperatura atual')).toHaveCount(0);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Buscar' })).toBeEnabled();
+    expect(forecastRequests).toBe(0);
+  });
+}
+
+for (const value of ['', '   ']) {
+  test(`busca inválida ${JSON.stringify(value)} preserva a cidade sem enviar requests`, async ({
+    page,
+  }) => {
+    let requests = 0;
+    await mockWeather(page);
+    page.on('request', (request) => {
+      if (new URL(request.url()).hostname.endsWith('open-meteo.com')) requests++;
+    });
+    await page.goto('/');
+    const input = page.getByRole('searchbox', { name: 'Cidade' });
+    await input.fill('São Paulo');
+    await page.getByRole('button', { name: 'Buscar' }).click();
+    await expect(page.getByRole('heading', { name: 'São Paulo' })).toBeVisible();
+    expect(requests).toBe(2);
+
+    await input.fill(value);
+    await page.getByRole('button', { name: 'Buscar' }).click();
+
+    await expect(page.getByRole('alert')).toHaveText('Informe uma cidade para buscar.');
+    await expect(input).toHaveAttribute('aria-invalid', 'true');
+    await expect(input).toBeFocused();
+    await expect(page.getByLabel('Temperatura atual')).toHaveText('0 °C');
+    await expect(page.getByRole('article')).toHaveCount(5);
+    expect(requests).toBe(2);
+  });
+}
+
+test('caracteres especiais chegam intactos à API e os resultados são exibidos', async ({
+  page,
+}) => {
+  const term = "São João d'Aliança & München + 東京/#?=100%";
+  let receivedTerm: string | null = null;
+  await mockWeather(page);
+  await page.route('https://geocoding-api.open-meteo.com/**', (route) => {
+    receivedTerm = new URL(route.request().url()).searchParams.get('name');
+    return route.fulfill({ json: { results: [{ ...city, name: term }] } });
+  });
   await page.goto('/');
-  await page.getByRole('searchbox', { name: 'Cidade' }).fill('São Paulo');
+  await page.getByRole('searchbox', { name: 'Cidade' }).fill(`  ${term}  `);
   await page.getByRole('button', { name: 'Buscar' }).click();
 
-  await expect(page.getByRole('status')).toContainText('Nenhuma cidade encontrada');
-  await expect(page.getByLabel('Temperatura atual')).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: term, exact: true })).toBeVisible();
+  await expect(page.getByRole('article')).toHaveCount(5);
+  expect(receivedTerm).toBe(term);
 });
+
+for (const [label, payload] of [
+  ['sem current', { timezone: forecast.timezone, daily: forecast.daily }],
+  ['sem daily', { timezone: forecast.timezone, current: forecast.current }],
+  ['daily nulo', { ...forecast, daily: null }],
+  ['sem datas', { ...forecast, daily: {} }],
+  ['quatro datas', {
+    ...forecast,
+    daily: { ...forecast.daily, time: forecast.daily.time.slice(0, 4) },
+  }],
+] as const) {
+  test(`forecast incompleto (${label}) mostra erro e permite recuperar pelo retry`, async ({
+    page,
+  }) => {
+    let forecastRequests = 0;
+    await mockWeather(page);
+    await page.route('https://api.open-meteo.com/**', (route) => {
+      forecastRequests++;
+      return route.fulfill({ json: forecastRequests === 1 ? payload : forecast });
+    });
+    await page.goto('/');
+    await page.getByRole('searchbox', { name: 'Cidade' }).fill('São Paulo');
+    await page.getByRole('button', { name: 'Buscar' }).click();
+
+    await expect(page.getByRole('alert')).toContainText(
+      'Não foi possível ler os dados enviados pelo serviço de clima.',
+    );
+    await expect(page.getByRole('button', { name: 'Buscar' })).toBeEnabled();
+    await expect(page.getByLabel('Temperatura atual')).toHaveCount(0);
+    await expect(page.getByRole('article')).toHaveCount(0);
+    await expect(page.getByRole('main')).not.toContainText('Nenhuma cidade encontrada');
+    await expect(page.getByRole('main')).not.toContainText(/NaN|undefined|Infinity|∞/);
+    await page.getByRole('button', { name: 'Tentar novamente' }).click();
+
+    await expect(page.getByRole('heading', { name: 'São Paulo' })).toBeVisible();
+    await expect(page.getByRole('article')).toHaveCount(5);
+    await expect(page.getByRole('alert')).toHaveCount(0);
+    expect(forecastRequests).toBe(2);
+  });
+}
 
 test('resposta parcial mostra traços em ambas as unidades e preserva zeros reais', async ({
   page,

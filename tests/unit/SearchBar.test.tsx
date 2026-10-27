@@ -38,6 +38,21 @@ describe('SearchBar', () => {
     expect(onSearch).toHaveBeenCalledExactlyOnceWith('São Paulo');
   });
 
+  it.each(["  São João d'Aliança  ", 'A&B + C/#?=100%', '  München 東京  '])(
+    'preserva os caracteres especiais de %j ao remover apenas espaços externos',
+    async (value) => {
+      const onSearch = vi.fn();
+      const user = userEvent.setup();
+      render(<SearchBar onSearch={onSearch} />);
+
+      await user.type(screen.getByRole('searchbox', { name: 'Cidade' }), value);
+      await user.click(screen.getByRole('button', { name: 'Buscar' }));
+
+      expect(onSearch).toHaveBeenCalledExactlyOnceWith(value.trim());
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    },
+  );
+
   it.each(['', '   '])('não busca com entrada %j e apresenta orientação', async (value) => {
     const user = userEvent.setup();
     const onSearch = vi.fn();
